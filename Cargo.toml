@@ -1,0 +1,26 @@
+[package]
+name = "perchat"
+version = "0.1.0"
+edition = "2021"
+
+
+[dependencies]
+# WEB AND ASYNC FRAMEWORK
+axum = { version = "0.6.10", features = ["ws", "macros"] }
+axum-server = { version = "0.5.1", features = ["tls-rustls"] }
+futures = "0.3.26"
+tokio = { version = "1.26.0", features = ["macros", "rt-multi-thread", "signal"] }
+serde = {version = "1.0.157", features = ["derive"]}
+tower-http = {version = "0.4.0", features = ["cors"]}
+serde_json = "1.0.94"
+futures-util = "0.3.30"
+dotenv = "0.15.0"
+
+# LOGGING
+log = "0.4.21"
+
+# AUTH
+uuid = { version = "1.8.0", features = ["v4", "macro-diagnostics"] }
+tracing = "0.1.40"
+chacha20poly1305 = "0.10.1"
+base64 = "0.21.7"

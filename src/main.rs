@@ -25,9 +25,7 @@ pub mod ws;
 pub mod axum_handlers;
 
 use axum_handlers::Decryptor;
-
 use ws::handler;
-use axum_handlers::generate_id;
 
 static SERVER_SECRET: &str = "2297dqzV55P5KK9S";
 
@@ -38,7 +36,7 @@ struct Client {
 }
 
 struct AppState {
-    chats: Mutex<HashMap<String,WebSocket>>,
+    chats: Mutex<Arc<HashMap<String,WebSocket>>>,
     server_key: String,
     decryptor: Mutex<Arc<Decryptor>>,
 }
@@ -61,8 +59,8 @@ async fn main() {
         .allow_methods(vec![Method::GET, Method::POST]);
 
     let app = Router::new()
-        .route("/", get(|| async { "Hello, World!" }))
-        .route("/generate_id", get(generate_id))
+        .route("/", get(axum_handlers::index))
+        .route("/generate_id", get(axum_handlers::generate_id))
         .route("/events/:id", get(handler::websocket))
         .with_state(app_state)
         .layer(cors);

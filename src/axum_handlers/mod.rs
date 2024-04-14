@@ -1,6 +1,7 @@
 use axum::extract::{Json,State};
 use crate::{AppState, Client};
 use std::sync::{Arc, Mutex};
+use axum::response::Html;
 use serde_json::{json, Value, Error};
 use uuid::Uuid;
 use dotenv::dotenv;
@@ -22,9 +23,8 @@ impl Decryptor {
     }
     pub fn encrypt(&self, cleartext: &str) -> String {
         let cipher = ChaCha20Poly1305::new(GenericArray::from_slice(&self.key));
-        let nonce = ChaCha20Poly1305::generate_nonce(&mut OsRng);
-        let mut obsf = cipher.encrypt(&nonce, cleartext.as_bytes()).unwrap();
-        obsf.splice(..0, nonce.iter().copied());
+        let mut obsf = cipher.encrypt(&self.nonce, cleartext.as_bytes()).unwrap();
+        obsf.splice(..0, self.nonce.iter().copied());
         base64::encode(obsf)
     }
 
@@ -40,6 +40,10 @@ impl Decryptor {
 }
 pub async fn verify_id() {}
 
+pub async fn index() -> Html<&'static str> {
+    Html(std::include_str!("../../static/chat.html"))
+}
+
 pub async fn generate_id(State(state) : State<Arc<AppState>>, key: String) -> Json<Value> {
 
     let id_priv = Uuid::new_v4().to_string();
@@ -50,14 +54,12 @@ pub async fn generate_id(State(state) : State<Arc<AppState>>, key: String) -> Js
 
     let decryptor = state.decryptor.lock().unwrap().clone();
 
-    let e = &decryptor.encrypt(id_priv.as_str());
+    let id_pub = &decryptor.encrypt(id_priv.as_str());
 
-    let s = &decryptor.decrypt(e.clone());
+    let s = &decryptor.decrypt(id_pub.clone());
 
     println!("{}: {}", s, id_priv);
 
-    let id_pub = e.clone();
-
-    Json(serde_json::to_value(Client { id_pub, id_priv }).unwrap())
+    Json(serde_json::to_value(Client { id_pub: id_pub.to_owned() , id_priv }).unwrap())
 
 }

@@ -20,12 +20,12 @@ use serde_json::{json, Value, Error};
 use tower_http::cors::{CorsLayer,Any};
 use log::warn;
 use dotenv::dotenv;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub mod ws;
 pub mod axum_handlers;
 
 use axum_handlers::Decryptor;
-use ws::handler;
 
 static SERVER_SECRET: &str = "2297dqzV55P5KK9S";
 
@@ -36,9 +36,21 @@ struct Client {
 }
 
 struct AppState {
-    chats: Mutex<Arc<HashMap<String,WebSocket>>>,
+    chats: Mutex<HashMap<String,ChatRoom>>,
     server_key: String,
     decryptor: Mutex<Arc<Decryptor>>,
+}
+
+struct ChatRoom {
+    tx: broadcast::Sender<String>,
+}
+
+impl ChatRoom {
+    fn new() -> Self {
+        Self {
+            tx: broadcast::channel(100).0,
+        }
+    }
 }
 
 #[tokio::main]
@@ -61,7 +73,8 @@ async fn main() {
     let app = Router::new()
         .route("/", get(axum_handlers::index))
         .route("/generate_id", get(axum_handlers::generate_id))
-        .route("/events/:id", get(handler::websocket))
+        .route("/publish", post(ws::publish::send))
+        .route("/events/:id", get(ws::ws::websocket))
         .with_state(app_state)
         .layer(cors);
 

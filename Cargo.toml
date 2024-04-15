@@ -24,3 +24,4 @@ uuid = { version = "1.8.0", features = ["v4", "macro-diagnostics"] }
 tracing = "0.1.40"
 chacha20poly1305 = "0.10.1"
 base64 = "0.21.7"
+tokio-stream = "0.1.15"

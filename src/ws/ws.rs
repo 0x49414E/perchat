@@ -1,3 +1,4 @@
+use std::ops::Deref;
 use std::sync::Arc;
 use axum::{body::Body,
            extract::{State, WebSocketUpgrade,
@@ -5,19 +6,25 @@ use axum::{body::Body,
            http::StatusCode,
            response::{IntoResponse, Response}};
 use futures_util::{SinkExt, StreamExt};
-use crate::{AppState,Client};
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
+use crate::{AppState, ChatRoom, Client};
+use tokio_stream::wrappers::UnboundedReceiverStream;
 
-pub async fn websocket(ws: WebSocketUpgrade,
+pub async fn websocket(ws: WebSocketUpgrade, Path(id_priv) : Path<String>,
                        State(state): State<Arc<AppState>>) -> Response
 {
-    ws.on_upgrade(|socket| handle_socket(socket, state))
+    ws.on_upgrade(|socket| {
+        handle_socket(socket, state)
+    })
 }
 
 pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>)
 {
     let (mut sender, mut receiver) = socket.split();
+    let mut id_pub = String::new();
+    let mut tx = None::<tokio::sync::broadcast::Sender<String>>;
 
-    let id_pub = String::new();
 
     while let Some(Ok(msg)) = receiver.next().await {
         if let Message::Text(payload) = msg {
@@ -31,11 +38,20 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>)
                     }
             };
 
-            //TODO!Push websocket and id_priv to hashmap
+            id_pub = client.id_pub;
+
+            let mut chats = (*state).chats.lock().unwrap();
+            let chat = chats.entry(id_pub.clone()).or_insert_with(ChatRoom::new);
+
+            tx = Some(chat.tx.clone());
         }
     }
 
-    let (mut tx, mut rx) = tokio::sync::broadcast::channel(100);
+    let mut tx = tx.unwrap();
+    let mut rx = tx.subscribe();
+
+    let msg = format!("{} joined.", id_pub.clone());
+    let _ = tx.send(msg);
 
     let mut send_task = tokio::spawn(async move {
         while let Ok(msg) = rx.recv().await {
@@ -51,7 +67,7 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>)
 
         tokio::spawn(async move {
             while let Some(Ok(Message::Text(text))) = receiver.next().await {
-                let _ = tx.send(format!("{}: {}", id_pub, text));
+                let _ = tx.send(format!("{}: {}", id_pub.clone(), text));
             }
         })
     };
@@ -60,7 +76,5 @@ pub async fn handle_socket(socket: WebSocket, state: Arc<AppState>)
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
     };
-
-    //TODO!Format string and send it to the client
 
 }
